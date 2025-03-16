@@ -1,7 +1,7 @@
 # Bildegjenkjenning
 
 I denne oppgaven skal vi bruke et verktøy fra Google til å lage et nevralt nettverk som kan klassifisere mellom ulike kategorier av bilder. 
-Du kan enten bruke webcamera på PCen din, eller bruke et eksisterende datasett. Du kan for eksempel bruke datasettet som ligger i Oppgaver repoet, eller laste det ned selv fra linken under. Du kan også velge et annet datasett om du ønsker det.  
+Du kan enten bruke webcamera på PCen din, eller bruke et eksisterende datasett. Du kan for eksempel bruke datasettet for klassifisering av flyfoto som ligger i Oppgaver repoet ("Bildegjenkjenning"-mappa), eller laste det ned selv fra linken under. Du kan også velge et annet datasett om du ønsker det.  
 
 ## Lenker
 - Lenke til verktøyet vi skal bruke: https://teachablemachine.withgoogle.com/
