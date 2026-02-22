@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reinforcement Learning: Cat & Mouse</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap');
+
+  :root {
+    --bg: #0d0d14;
+    --panel: #13131f;
+    --border: #2a2a3e;
+    --accent: #f7c948;
+    --accent2: #ff6b6b;
+    --text: #e8e8f0;
+    --muted: #666680;
+    --green: #4ecca3;
+    --cat-color: #ff8c42;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Noise overlay */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events: none; z-index: 0;
+  }
+
+  .container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem;
+    position: relative; z-index: 1;
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 2rem;
+  }
+
+  header h1 {
+    font-size: clamp(1.8rem, 4vw, 2.8rem);
+    font-weight: 800;
+    letter-spacing: -1px;
+    line-height: 1.1;
+  }
+
+  header h1 span { color: var(--accent); }
+
+  header p {
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+    font-size: 0.8rem;
+    margin-top: 0.5rem;
+  }
+
+  /* Controls panel */
+  .controls {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+  }
+
+  .control-group label {
+    display: block;
+    font-size: 0.75rem;
+    font-family: 'Space Mono', monospace;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 0.5rem;
+  }
+
+  .control-group label span {
+    color: var(--accent);
+    font-weight: 700;
+  }
+
+  .slider-wrap {
+    position: relative;
+  }
+
+  input[type=range] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    outline: none;
+  }
+
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    box-shadow: 0 0 10px rgba(247,201,72,0.5);
+  }
+
+  .explore-exploit-bar {
+    display: flex;
+    height: 8px;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-top: 0.5rem;
+  }
+
+  .explore-part { background: var(--green); transition: width 0.2s; }
+  .exploit-part { background: var(--accent2); transition: width 0.2s; }
+
+  .bar-labels {
+    display: flex;
+    justify-content: space-between;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    margin-top: 0.3rem;
+  }
+
+  .bar-labels .exp { color: var(--green); }
+  .bar-labels .expl { color: var(--accent2); }
+
+  .param-explain {
+    margin-top: 0.65rem;
+    background: rgba(255,255,255,0.03);
+    border-left: 3px solid var(--border);
+    border-radius: 0 6px 6px 0;
+    padding: 0.6rem 0.75rem;
+    font-size: 0.78rem;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  .param-explain b { color: var(--text); }
+  .param-explain em { color: var(--accent); font-style: normal; font-weight: 700; }
+
+  .param-explain .tip {
+    display: block;
+    margin-top: 0.4rem;
+    font-size: 0.72rem;
+    color: var(--green);
+    opacity: 0.85;
+  }
+
+  .controls-row {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .btn {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 0.85rem;
+    padding: 0.6rem 1.4rem;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 0.5px;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #0d0d14;
+  }
+
+  .btn-primary:hover { background: #ffd966; transform: translateY(-1px); }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+
+  .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+
+  .status-pill {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.72rem;
+    padding: 0.4rem 0.9rem;
+    border-radius: 20px;
+    background: var(--border);
+    color: var(--muted);
+  }
+
+  .status-pill.running { background: rgba(78,204,163,0.15); color: var(--green); }
+
+  /* Main layout */
+  .main-grid {
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    gap: 1.5rem;
+  }
+
+  /* Episodes section */
+  .episodes-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+  }
+
+  .episode-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    transition: border-color 0.3s;
+  }
+
+  .episode-card.active {
+    border-color: var(--accent);
+    box-shadow: 0 0 20px rgba(247,201,72,0.1);
+  }
+
+  .episode-card.best {
+    border-color: var(--green);
+    box-shadow: 0 0 20px rgba(78,204,163,0.1);
+  }
+
+  .card-header {
+    padding: 0.6rem 0.8rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border);
+    background: rgba(255,255,255,0.02);
+  }
+
+  .card-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .card-stats {
+    display: flex;
+    gap: 0.6rem;
+  }
+
+  .stat-badge {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+    background: var(--border);
+    color: var(--muted);
+  }
+
+  .stat-badge.success { background: rgba(78,204,163,0.2); color: var(--green); }
+  .stat-badge.steps { background: rgba(247,201,72,0.15); color: var(--accent); }
+
+  canvas {
+    display: block;
+    width: 100%;
+  }
+
+  /* Q-table / stats panel */
+  .side-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .panel-box {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1rem;
+  }
+
+  .panel-box h3 {
+    font-size: 0.75rem;
+    font-family: 'Space Mono', monospace;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 0.8rem;
+  }
+
+  .progress-list { display: flex; flex-direction: column; gap: 0.5rem; }
+
+  .progress-item {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+
+  .progress-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--muted);
+    width: 60px;
+    flex-shrink: 0;
+  }
+
+  .progress-bar-bg {
+    flex: 1;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .progress-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    background: var(--green);
+    transition: width 0.5s ease;
+  }
+
+  .progress-val {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--accent);
+    width: 30px;
+    text-align: right;
+  }
+
+  .qtable-grid {
+    display: grid;
+    gap: 2px;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.55rem;
+  }
+
+  .qtable-cell {
+    padding: 2px;
+    border-radius: 3px;
+    text-align: center;
+    color: rgba(255,255,255,0.7);
+    transition: background 0.3s;
+  }
+
+  .concept-box {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1rem;
+  }
+
+  .concept-box h3 {
+    font-size: 0.75rem;
+    font-family: 'Space Mono', monospace;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 0.8rem;
+  }
+
+  .concept-item {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.6rem;
+    font-size: 0.78rem;
+    line-height: 1.5;
+    color: var(--muted);
+  }
+
+  .concept-item .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    margin-top: 5px;
+  }
+
+  .controls-bottom {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-top: 0.5rem;
+  }
+
+  @media (max-width: 768px) {
+    .main-grid { grid-template-columns: 1fr; }
+    .controls { grid-template-columns: 1fr; }
+    .episodes-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>Reinforcement Learning<br><span>Cat & Mouse</span></h1>
+    <p>// Q-Learning Visualization — Adjust parameters and watch the agent learn</p>
+  </header>
+
+  <!-- Controls -->
+  <div class="controls">
+    <div class="control-group">
+      <label>Exploration (ε) vs Exploitation — <span id="epsilon-val">0.70</span></label>
+      <input type="range" id="epsilon" min="0" max="1" step="0.01" value="0.70">
+      <div class="explore-exploit-bar">
+        <div class="explore-part" id="explore-bar" style="width:70%"></div>
+        <div class="exploit-part" id="exploit-bar" style="width:30%"></div>
+      </div>
+      <div class="bar-labels">
+        <span class="exp">🎲 Explore (random moves)</span>
+        <span class="expl">🎯 Exploit (learned policy)</span>
+      </div>
+      <div class="param-explain">
+        <b>What does this do?</b> Controls how often the cat tries a <em>random</em> move vs. uses what it has already learned.
+        A high value (close to 1) means the cat explores freely — great early on when it knows nothing.
+        A low value (close to 0) means the cat always picks the move it thinks is best — useful once it has learned enough.
+        <span class="tip">💡 Try setting it high (0.9) then low (0.1) and compare how learning speed changes.</span>
+      </div>
+    </div>
+    <div class="control-group">
+      <label>Learning Rate (α) — <span id="alpha-val">0.50</span></label>
+      <input type="range" id="alpha" min="0.01" max="1" step="0.01" value="0.50">
+      <div class="param-explain">
+        <b>What does this do?</b> How strongly each new experience overwrites old knowledge.
+        A high α (e.g. 0.9) means the agent learns fast but can be unstable — one bad move changes everything.
+        A low α (e.g. 0.1) means slow, steady learning that is less sensitive to single events.
+        <span class="tip">💡 Think of it like how quickly you update your opinion after one bad experience.</span>
+      </div>
+
+      <label style="margin-top:1rem">Discount Factor (γ) — <span id="gamma-val">0.90</span></label>
+      <input type="range" id="gamma" min="0.1" max="0.99" step="0.01" value="0.90">
+      <div class="param-explain">
+        <b>What does this do?</b> How much the agent values <em>future</em> rewards compared to immediate ones.
+        A high γ (e.g. 0.99) means the cat is patient — it plans many steps ahead to reach the mouse.
+        A low γ (e.g. 0.2) means the cat is short-sighted — it only cares about the very next step.
+        <span class="tip">💡 Imagine the difference between saving for retirement vs. only thinking about today's lunch.</span>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex; gap:0.75rem; align-items:center; margin-bottom:1.5rem; flex-wrap:wrap;">
+    <button class="btn btn-primary" id="trainBtn" onclick="startTraining()">▶ Start Training</button>
+    <button class="btn btn-ghost" onclick="resetAll()">↺ Reset</button>
+    <div class="status-pill" id="statusPill">Ready</div>
+    <div style="flex:1"></div>
+    <div style="font-family:'Space Mono',monospace; font-size:0.72rem; color:var(--muted)">
+      Episode: <span id="epCount" style="color:var(--accent)">0</span> / 1000 &nbsp;|&nbsp; Showing: Ep 1, 5, 10, 50, 100, 500, 1000
+    </div>
+  </div>
+
+  <div class="main-grid">
+    <div>
+      <div class="episodes-grid" id="episodesGrid">
+        <!-- Cards inserted by JS -->
+      </div>
+    </div>
+
+    <div class="side-panel">
+      <!-- Learning progress -->
+      <div class="panel-box">
+        <h3>Success Rate by Episode</h3>
+        <div class="progress-list" id="progressList"></div>
+      </div>
+
+      <!-- Q-table heatmap -->
+      <div class="panel-box">
+        <h3>Q-Table Heatmap (5×5 grid)</h3>
+        <div id="qtableViz"></div>
+        <div style="font-family:'Space Mono',monospace; font-size:0.6rem; color:var(--muted); margin-top:0.5rem">
+          Brighter = higher Q-value (agent prefers this cell)
+        </div>
+      </div>
+
+      <!-- Concepts -->
+      <div class="concept-box">
+        <h3>Key Concepts</h3>
+        <div class="concept-item">
+          <div class="dot" style="background:var(--green)"></div>
+          <div><b style="color:var(--text)">Explore:</b> Random moves → discovers new paths</div>
+        </div>
+        <div class="concept-item">
+          <div class="dot" style="background:var(--accent2)"></div>
+          <div><b style="color:var(--text)">Exploit:</b> Use learned Q-values → follow best known path</div>
+        </div>
+        <div class="concept-item">
+          <div class="dot" style="background:var(--accent)"></div>
+          <div><b style="color:var(--text)">Q-Value:</b> Expected future reward for (state, action)</div>
+        </div>
+        <div class="concept-item">
+          <div class="dot" style="background:#a78bfa"></div>
+          <div><b style="color:var(--text)">Bellman Eq:</b> Q(s,a) ← Q + α[r + γ·max Q(s') − Q]</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ======== GRID & RL CONFIG ========
+const GRID = 5;
+const CELL = 72;
+const WALL_CHANCE = 0.15;
+
+// Episode milestones to show
+const MILESTONES = [1, 5, 10, 50, 100, 500, 1000];
+
+// RL State
+let Q = {};
+let episodeHistory = [];
+let walls = [];
+let mousePos = { x: 4, y: 4 };
+let catStart = { x: 0, y: 0 };
+let isTraining = false;
+
+// ======== INIT ========
+function initQ() {
+  Q = {};
+  for (let y = 0; y < GRID; y++)
+    for (let x = 0; x < GRID; x++) {
+      const key = `${x},${y}`;
+      Q[key] = [0, 0, 0, 0]; // up, down, left, right
+    }
+}
+
+function generateWalls() {
+  walls = [];
+  for (let y = 0; y < GRID; y++)
+    for (let x = 0; x < GRID; x++) {
+      if ((x === 0 && y === 0) || (x === 4 && y === 4)) continue;
+      if (Math.random() < WALL_CHANCE) walls.push({ x, y });
+    }
+}
+
+function isWall(x, y) {
+  return walls.some(w => w.x === x && w.y === y);
+}
+
+// ======== Q-LEARNING ========
+const ACTIONS = [
+  { dx: 0, dy: -1, name: '↑' },
+  { dx: 0, dy: 1, name: '↓' },
+  { dx: -1, dy: 0, name: '←' },
+  { dx: 1, dy: 0, name: '→' }
+];
+
+function getParams() {
+  return {
+    epsilon: parseFloat(document.getElementById('epsilon').value),
+    alpha: parseFloat(document.getElementById('alpha').value),
+    gamma: parseFloat(document.getElementById('gamma').value)
+  };
+}
+
+function chooseAction(x, y, epsilon) {
+  if (Math.random() < epsilon) {
+    return Math.floor(Math.random() * 4);
+  }
+  const vals = Q[`${x},${y}`];
+  return vals.indexOf(Math.max(...vals));
+}
+
+function step(x, y, action) {
+  const { dx, dy } = ACTIONS[action];
+  const nx = x + dx, ny = y + dy;
+  if (nx < 0 || nx >= GRID || ny < 0 || ny >= GRID || isWall(nx, ny)) {
+    return { nx: x, ny: y, reward: -0.5 };
+  }
+  if (nx === mousePos.x && ny === mousePos.y) {
+    return { nx, ny, reward: 10 };
+  }
+  // Small negative to encourage efficiency
+  return { nx, ny, reward: -0.1 };
+}
+
+function runEpisode(maxSteps = 200) {
+  const { epsilon, alpha, gamma } = getParams();
+  let x = catStart.x, y = catStart.y;
+  let path = [{ x, y }];
+  let totalReward = 0;
+  let caught = false;
+
+  for (let s = 0; s < maxSteps; s++) {
+    const a = chooseAction(x, y, epsilon);
+    const { nx, ny, reward } = step(x, y, a);
+    totalReward += reward;
+
+    const key = `${x},${y}`;
+    const nextKey = `${nx},${ny}`;
+    const maxNextQ = Math.max(...Q[nextKey]);
+    Q[key][a] += alpha * (reward + gamma * maxNextQ - Q[key][a]);
+
+    x = nx; y = ny;
+    path.push({ x, y });
+
+    if (x === mousePos.x && y === mousePos.y) {
+      caught = true;
+      break;
+    }
+  }
+  return { path, caught, steps: path.length - 1, reward: totalReward };
+}
+
+// ======== CANVAS DRAWING ========
+function createCard(milestone) {
+  const card = document.createElement('div');
+  card.className = 'episode-card';
+  card.id = `card-${milestone}`;
+  card.innerHTML = `
+    <div class="card-header">
+      <div class="card-title">Episode ${milestone}</div>
+      <div class="card-stats" id="stats-${milestone}">
+        <span class="stat-badge">Waiting...</span>
+      </div>
+    </div>
+    <canvas id="canvas-${milestone}" width="${GRID * CELL}" height="${GRID * CELL}"></canvas>
+  `;
+  return card;
+}
+
+function drawGrid(ctx, path, caught, animProgress) {
+  const w = GRID * CELL, h = GRID * CELL;
+  
+  // Background
+  ctx.fillStyle = '#0d0d14';
+  ctx.fillRect(0, 0, w, h);
+
+  // Grid lines
+  ctx.strokeStyle = '#1e1e30';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= GRID; i++) {
+    ctx.beginPath(); ctx.moveTo(i * CELL, 0); ctx.lineTo(i * CELL, h); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, i * CELL); ctx.lineTo(w, i * CELL); ctx.stroke();
+  }
+
+  // Walls
+  walls.forEach(({ x, y }) => {
+    ctx.fillStyle = '#1a1a2e';
+    ctx.fillRect(x * CELL + 1, y * CELL + 1, CELL - 2, CELL - 2);
+    ctx.fillStyle = '#0f0f1a';
+    ctx.fillRect(x * CELL + 3, y * CELL + 3, CELL - 6, CELL - 6);
+  });
+
+  // Path trail (show up to animProgress)
+  const showSteps = Math.floor(animProgress * path.length);
+  for (let i = 1; i < showSteps; i++) {
+    const alpha = (i / path.length) * 0.6 + 0.1;
+    ctx.strokeStyle = `rgba(247,201,72,${alpha})`;
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(path[i-1].x * CELL + CELL/2, path[i-1].y * CELL + CELL/2);
+    ctx.lineTo(path[i].x * CELL + CELL/2, path[i].y * CELL + CELL/2);
+    ctx.stroke();
+  }
+
+  // Mouse 🐭
+  ctx.font = `${CELL * 0.55}px serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('🐭', mousePos.x * CELL + CELL/2, mousePos.y * CELL + CELL/2);
+
+  // Cat at current position
+  const catIdx = Math.min(showSteps, path.length - 1);
+  if (catIdx >= 0) {
+    const catPos = path[catIdx];
+    ctx.font = `${CELL * 0.55}px serif`;
+    ctx.fillText('🐱', catPos.x * CELL + CELL/2, catPos.y * CELL + CELL/2);
+  }
+
+  // Caught celebration
+  if (caught && animProgress >= 1) {
+    ctx.fillStyle = 'rgba(78,204,163,0.15)';
+    ctx.fillRect(mousePos.x * CELL, mousePos.y * CELL, CELL, CELL);
+    ctx.font = `${CELL * 0.4}px serif`;
+    ctx.fillText('✨', mousePos.x * CELL + CELL/2, mousePos.y * CELL + CELL/4);
+  }
+}
+
+function animateEpisode(milestone, result) {
+  const canvas = document.getElementById(`canvas-${milestone}`);
+  const ctx = canvas.getContext('2d');
+  const { path, caught, steps } = result;
+
+  // Update stats
+  const statsEl = document.getElementById(`stats-${milestone}`);
+  statsEl.innerHTML = `
+    <span class="stat-badge steps">${steps} steps</span>
+    <span class="stat-badge ${caught ? 'success' : ''}">${caught ? '✓ Caught!' : '✗ Failed'}</span>
+  `;
+
+  const card = document.getElementById(`card-${milestone}`);
+  if (caught) card.classList.add('best');
+
+  let start = null;
+  const duration = Math.min(1500, 200 + steps * 40);
+
+  function animate(ts) {
+    if (!start) start = ts;
+    const progress = Math.min((ts - start) / duration, 1);
+    drawGrid(ctx, path, caught, progress);
+    if (progress < 1) requestAnimationFrame(animate);
+  }
+  requestAnimationFrame(animate);
+}
+
+// ======== PROGRESS LIST ========
+function updateProgress(milestone, caught) {
+  const list = document.getElementById('progressList');
+  let item = document.getElementById(`prog-${milestone}`);
+  if (!item) {
+    item = document.createElement('div');
+    item.className = 'progress-item';
+    item.id = `prog-${milestone}`;
+    item.innerHTML = `
+      <div class="progress-label">Ep. ${milestone}</div>
+      <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:0%"></div></div>
+      <div class="progress-val" id="progval-${milestone}">—</div>
+    `;
+    list.appendChild(item);
+  }
+  // track rolling success
+  const history = episodeHistory.slice(-20);
+  const rate = history.filter(r => r.caught).length / Math.max(history.length, 1);
+  const fill = item.querySelector('.progress-bar-fill');
+  fill.style.width = `${rate * 100}%`;
+  document.getElementById(`progval-${milestone}`).textContent = `${Math.round(rate*100)}%`;
+}
+
+// ======== Q-TABLE VIZ ========
+function renderQTable() {
+  const container = document.getElementById('qtableViz');
+  const size = 22;
+  container.innerHTML = '';
+
+  const grid = document.createElement('div');
+  grid.style.display = 'grid';
+  grid.style.gridTemplateColumns = `repeat(${GRID}, ${size}px)`;
+  grid.style.gap = '2px';
+
+  let maxQ = 0;
+  for (let y = 0; y < GRID; y++)
+    for (let x = 0; x < GRID; x++) {
+      const v = Math.max(...Q[`${x},${y}`]);
+      if (v > maxQ) maxQ = v;
+    }
+
+  for (let y = 0; y < GRID; y++) {
+    for (let x = 0; x < GRID; x++) {
+      const cell = document.createElement('div');
+      const v = Math.max(...Q[`${x},${y}`]);
+      const norm = maxQ > 0 ? v / maxQ : 0;
+      const g = Math.floor(norm * 200);
+      cell.style.cssText = `width:${size}px;height:${size}px;border-radius:3px;background:rgb(${Math.floor(g*0.3)},${g},${Math.floor(g*0.7)});`;
+      
+      if (x === catStart.x && y === catStart.y) cell.textContent = '🐱';
+      if (x === mousePos.x && y === mousePos.y) cell.textContent = '🐭';
+      if (isWall(x, y)) { cell.style.background = '#1a1a2e'; cell.textContent = '█'; cell.style.fontSize = '8px'; cell.style.color = '#0f0f1a'; }
+
+      cell.style.display = 'flex';
+      cell.style.alignItems = 'center';
+      cell.style.justifyContent = 'center';
+      cell.style.fontSize = '12px';
+      grid.appendChild(cell);
+    }
+  }
+  container.appendChild(grid);
+}
+
+// ======== MAIN TRAINING LOOP ========
+async function startTraining() {
+  if (isTraining) return;
+  isTraining = true;
+  document.getElementById('trainBtn').disabled = true;
+  document.getElementById('statusPill').textContent = 'Training...';
+  document.getElementById('statusPill').className = 'status-pill running';
+
+  initQ();
+  generateWalls();
+  episodeHistory = [];
+
+  // Build cards
+  const grid = document.getElementById('episodesGrid');
+  grid.innerHTML = '';
+  MILESTONES.forEach(m => grid.appendChild(createCard(m)));
+
+  const totalEps = 1000;
+  let milestoneResults = {};
+
+  for (let ep = 1; ep <= totalEps; ep++) {
+    const result = runEpisode();
+    episodeHistory.push(result);
+    document.getElementById('epCount').textContent = ep;
+
+    if (MILESTONES.includes(ep)) {
+      milestoneResults[ep] = result;
+      const card = document.getElementById(`card-${ep}`);
+      card.classList.add('active');
+      animateEpisode(ep, result);
+      updateProgress(ep, result.caught);
+      renderQTable();
+      // Small pause so browser can paint
+      await new Promise(r => setTimeout(r, 80));
+    }
+
+    // Yield to UI periodically
+    if (ep % 50 === 0) {
+      await new Promise(r => setTimeout(r, 10));
+    }
+  }
+
+  renderQTable();
+  document.getElementById('statusPill').textContent = '✓ Done (1000 episodes)';
+  document.getElementById('statusPill').className = 'status-pill';
+  document.getElementById('trainBtn').disabled = false;
+  isTraining = false;
+}
+
+function resetAll() {
+  if (isTraining) return;
+  initQ();
+  episodeHistory = [];
+  document.getElementById('episodesGrid').innerHTML = '';
+  document.getElementById('progressList').innerHTML = '';
+  document.getElementById('qtableViz').innerHTML = '';
+  document.getElementById('epCount').textContent = '0';
+  document.getElementById('statusPill').textContent = 'Ready';
+  document.getElementById('statusPill').className = 'status-pill';
+}
+
+// ======== SLIDER UPDATES ========
+document.getElementById('epsilon').addEventListener('input', function() {
+  const v = parseFloat(this.value);
+  document.getElementById('epsilon-val').textContent = v.toFixed(2);
+  document.getElementById('explore-bar').style.width = `${v * 100}%`;
+  document.getElementById('exploit-bar').style.width = `${(1 - v) * 100}%`;
+});
+
+document.getElementById('alpha').addEventListener('input', function() {
+  document.getElementById('alpha-val').textContent = parseFloat(this.value).toFixed(2);
+});
+
+document.getElementById('gamma').addEventListener('input', function() {
+  document.getElementById('gamma-val').textContent = parseFloat(this.value).toFixed(2);
+});
+
+// Init
+initQ();
+generateWalls();
+</script>
+</body>
+</html>
